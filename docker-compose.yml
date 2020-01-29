@@ -1,0 +1,59 @@
+#!/usr/bin/env -S docker-compose -p kafka -f
+
+version: "3.5"
+
+networks:
+  default:
+    driver: bridge
+    internal: false
+    external: false
+
+services:
+
+  gateway:
+    image: traefik
+    restart: "no"
+    command: --api.insecure=true --providers.docker
+    networks:
+      - default
+    ports:
+      -   80:80
+      - 8080:8080
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  nodes:
+    image: pvtmert/confluent
+    #entrypoint: sh -c
+    command: kafkanet
+    restart: "no"
+    privileged: false
+    stdin_open: false
+    tty: false
+    build:
+      context: ./
+      dockerfile: confluent.dockerfile
+      args: {}
+    networks:
+      default:
+        aliases:
+          - kafkanet
+    expose:
+      - 2181
+      - 2888
+      - 3888
+      - 9092
+    labels:
+      - traefik.http.routers.web.rule=Host("nodes.kafka.docker.localhost")
+    deploy:
+      endpoint_mode: dnsrr
+      mode: replicated
+      replicas: 3
+      placement:
+        constraints: []
+        preferences: []
+    healthcheck:
+      test: timeout 10 bash -c 'cat </dev/null >/dev/tcp/0/9092'
+      interval: 1m
+      timeout: 10s
+      retries: 3
