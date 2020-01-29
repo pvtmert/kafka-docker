@@ -90,7 +90,6 @@ services:
       - traefik.tcp.services.serv2888.loadbalancer.server.port=2888
       - traefik.tcp.services.serv3888.loadbalancer.server.port=3888
       - traefik.tcp.services.serv9092.loadbalancer.server.port=9092
-      #- traefik.tcp.routers.router.rule=2181,2888,3888,9092
       - traefik.tcp.routers.rt2181.entrypoints=ent2181
       - traefik.tcp.routers.rt2181.service=serv2181
       - traefik.tcp.routers.rt2181.rule=HostSNI(`*`)
