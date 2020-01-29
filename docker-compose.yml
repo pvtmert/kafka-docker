@@ -62,15 +62,21 @@ services:
       - 9092:9092
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+    deploy:
+      endpoint_mode: vip
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+        preferences: []
+          #- spread: node.role.manager
 
   nodes:
     image: pvtmert/confluent
     #entrypoint: sh -c
     command: kafkanet
     restart: "no"
-    privileged: false
-    stdin_open: false
-    tty: false
     build:
       context: ./
       dockerfile: dockerfile
@@ -111,8 +117,10 @@ services:
       mode: replicated
       replicas: 3
       placement:
-        constraints: []
+        constraints:
+          - node.role == worker
         preferences: []
+          #- spread: node.role.worker
     healthcheck:
       test: timeout 10 bash -c 'cat </dev/null >/dev/tcp/0/9092'
       interval: 1m
