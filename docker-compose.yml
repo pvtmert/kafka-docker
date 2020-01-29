@@ -10,6 +10,59 @@ networks:
 
 services:
 
+  gateway:
+    image: traefik:v2.1
+    restart: "no"
+    command: |
+      --api=true
+      --api.insecure=true
+      --api.dashboard=true
+      --metrics=true
+      --metrics.datadog=true
+      --metrics.datadog.address=0.0.0.0:8125
+      --metrics.datadog.addServicesLabels=true
+      --metrics.datadog.addEntryPointsLabels=true
+      --metrics.influxdb=true
+      --metrics.influxdb.address=0.0.0.0:8089
+      --metrics.influxdb.database=db
+      --metrics.influxdb.retentionPolicy=two_hours
+      --metrics.influxdb.addEntryPointsLabels=true
+      --metrics.influxdb.addServicesLabels=true
+      --tracing=true
+      --tracing.serviceName=traefik
+      --tracing.datadog=true
+      --tracing.datadog.debug=true
+      --tracing.datadog.localAgentHostPort=0.0.0.0:8126
+      --accesslog=true
+      --accesslog.format=json
+      --accesslog.filepath=/tmp/access.log
+      --providers.docker
+      --providers.docker.exposedbydefault=false
+      --ping=true
+      --ping.entrypoint=traefik
+      --log.filePath=/tmp/traefik.log
+      --log.format=json
+      --log.level=DEBUG
+      --hostresolver=true
+      --entrypoints.ent2181=true
+      --entrypoints.ent2181.address=:2181
+      --entrypoints.ent2888=true
+      --entrypoints.ent2888.address=:2888
+      --entrypoints.ent3888=true
+      --entrypoints.ent3888.address=:3888
+      --entrypoints.ent9092=true
+      --entrypoints.ent9092.address=:9092
+    networks:
+      - default
+    ports:
+      - 8080:8080
+      - 2181:2181
+      - 2888:2888
+      - 3888:3888
+      - 9092:9092
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
   nodes:
     image: pvtmert/confluent
     #entrypoint: sh -c
@@ -31,10 +84,29 @@ services:
       - 2888
       - 3888
       - 9092
-    labels: []
-      #- traefik.enable=true
-      #- traefik.tcp.routers.nodes.service=myservice
-      #- traefik.tcp.services.nodes.loadBalancer.servers.address=kafkanet:9092
+    labels:
+      - traefik.enable=true
+      - traefik.tcp.services.serv2181.loadbalancer.server.port=2181
+      - traefik.tcp.services.serv2888.loadbalancer.server.port=2888
+      - traefik.tcp.services.serv3888.loadbalancer.server.port=3888
+      - traefik.tcp.services.serv9092.loadbalancer.server.port=9092
+      #- traefik.tcp.routers.router.rule=2181,2888,3888,9092
+      - traefik.tcp.routers.rt2181.entrypoints=ent2181
+      - traefik.tcp.routers.rt2181.service=serv2181
+      - traefik.tcp.routers.rt2181.rule=HostSNI(`*`)
+      - traefik.tcp.routers.rt2181.tls=false
+      - traefik.tcp.routers.rt2888.entrypoints=ent2888
+      - traefik.tcp.routers.rt2888.service=serv2888
+      - traefik.tcp.routers.rt2888.rule=HostSNI(`*`)
+      - traefik.tcp.routers.rt2888.tls=false
+      - traefik.tcp.routers.rt3888.entrypoints=ent3888
+      - traefik.tcp.routers.rt3888.service=serv3888
+      - traefik.tcp.routers.rt3888.rule=HostSNI(`*`)
+      - traefik.tcp.routers.rt3888.tls=false
+      - traefik.tcp.routers.rt9092.entrypoints=ent9092
+      - traefik.tcp.routers.rt9092.service=serv9092
+      - traefik.tcp.routers.rt9092.rule=HostSNI(`*`)
+      - traefik.tcp.routers.rt9092.tls=false
     deploy:
       endpoint_mode: dnsrr
       mode: replicated

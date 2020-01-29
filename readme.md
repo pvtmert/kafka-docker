@@ -36,7 +36,6 @@ docker-compose -p kafka -f docker-compose.yml up --scale nodes=3
 
 ```
 cat docker-compose.yml \
-| sed 's/expose:/ports:/' \
 | sed 's/driver: bridge/driver: overlay/' \
 | docker stack deploy -c - --prune kafka
 ```
