@@ -4,12 +4,12 @@
 DNS="${1}"
 DIG="$(which dig)"
 INIT=".init.kafka"
-FQDN=$(hostname -f)
+#FQDN=$(hostname -f)
 
 : ${DNS:?name is required}
 IP=$(hostname -i)
-ID=$(dig +short "${DNS}" | sort -Vr | grep -n "${IP}" | cut -d: -f1 | head -1)
-FQDN=$(dig +short -x "${IP}")
+ID=$(  "${DIG}" +short    "${DNS}" | sort -Vr | grep -n "${IP}" | cut -d: -f1 | head -1)
+FQDN=$("${DIG}" +short -x "${IP}"  | grep -v '^;;' || hostname -f)
 
 : ${ID?of broker is necessary}
 : ${DNS?host is necessary}
@@ -17,13 +17,13 @@ FQDN=$(dig +short -x "${IP}")
 : ${CONFLUENT_DATA?is missing}
 : ${DIG?is required to discover hosts}
 
-FQDN=${FQDN%%.}
+FQDN="${FQDN%%.}"
 
 function start {
 	"zookeeper-server-start" ${CONFLUENT_HOME}/etc/kafka/zookeeper.properties || exit &
 	"kafka-server-start"     ${CONFLUENT_HOME}/etc/kafka/server.properties    || exit &
-	dig +short -x "${IP}" | printf "My PTR  is: %s\n" "$(cat)"
-	hostname -A           | printf "My FQDN is: %s\n" "$(cat)"
+	"${DIG}" +short -x "${IP}" | printf "My PTR  is: %s\n" "$(cat)"
+	hostname -A                | printf "My FQDN is: %s\n" "$(cat)"
 	wait
 }
 

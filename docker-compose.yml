@@ -10,18 +10,6 @@ networks:
 
 services:
 
-  gateway:
-    image: traefik
-    restart: "no"
-    command: --api.insecure=true --providers.docker
-    networks:
-      - default
-    ports:
-      -   80:80
-      - 8080:8080
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-
   nodes:
     image: pvtmert/confluent
     #entrypoint: sh -c
@@ -32,7 +20,7 @@ services:
     tty: false
     build:
       context: ./
-      dockerfile: confluent.dockerfile
+      dockerfile: dockerfile
       args: {}
     networks:
       default:
@@ -43,8 +31,10 @@ services:
       - 2888
       - 3888
       - 9092
-    labels:
-      - traefik.http.routers.web.rule=Host("nodes.kafka.docker.localhost")
+    labels: []
+      #- traefik.enable=true
+      #- traefik.tcp.routers.nodes.service=myservice
+      #- traefik.tcp.services.nodes.loadBalancer.servers.address=kafkanet:9092
     deploy:
       endpoint_mode: dnsrr
       mode: replicated
