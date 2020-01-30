@@ -10,14 +10,43 @@ networks:
 
 services:
 
+  visual:
+    image: dockersamples/visualizer:latest
+    restart: "no"
+    networks:
+      - default
+    expose:
+      - 8080
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    labels:
+      - traefik.enable=true
+      - traefik.http.services.servhttp.loadbalancer.passhostheader=true
+      - traefik.http.services.servhttp.loadbalancer.server.scheme=http
+      - traefik.http.services.servhttp.loadbalancer.server.port=8080
+      - traefik.http.routers.rthttp.entrypoints=enthttp
+      - traefik.http.routers.rthttp.service=servhttp
+      - traefik.http.routers.rthttp.rule=PathPrefix(`/`)
+      - traefik.http.routers.rthttp.tls=false
+    deploy:
+      endpoint_mode: vip
+      mode: global
+      #replicas: 0
+      placement:
+        constraints:
+          - node.role == manager
+        preferences:
+          - spread: node.role
+
   gateway:
     image: traefik:v2.1
     restart: "no"
     command: |
       --api=true
+      --api.debug=true
       --api.insecure=true
       --api.dashboard=true
-      --metrics=true
+      --metrics=false
       --metrics.datadog=true
       --metrics.datadog.address=0.0.0.0:8125
       --metrics.datadog.addServicesLabels=true
@@ -28,22 +57,27 @@ services:
       --metrics.influxdb.retentionPolicy=two_hours
       --metrics.influxdb.addEntryPointsLabels=true
       --metrics.influxdb.addServicesLabels=true
-      --tracing=true
+      --tracing=false
       --tracing.serviceName=traefik
       --tracing.datadog=true
-      --tracing.datadog.debug=true
+      --tracing.datadog.debug=false
       --tracing.datadog.localAgentHostPort=0.0.0.0:8126
       --accesslog=true
       --accesslog.format=json
       --accesslog.filepath=/tmp/access.log
-      --providers.docker
-      --providers.docker.exposedbydefault=false
+      --providers.docker=true
+      --providers.docker.swarmMode=false
+      --providers.docker.useBindPortIP=true
+      --providers.docker.exposedByDefault=false
       --ping=true
-      --ping.entrypoint=traefik
+      --ping.entrypoint=enthttp
       --log.filePath=/tmp/traefik.log
       --log.format=json
       --log.level=DEBUG
-      --hostresolver=true
+      --hostresolver=false
+      --hostresolver.cnameflattening=false
+      --entrypoints.enthttp=true
+      --entrypoints.enthttp.address=:80
       --entrypoints.ent2181=true
       --entrypoints.ent2181.address=:2181
       --entrypoints.ent2888=true
@@ -53,8 +87,11 @@ services:
       --entrypoints.ent9092=true
       --entrypoints.ent9092.address=:9092
     networks:
-      - default
+      default:
+        aliases:
+          - traefik
     ports:
+      -   80:80
       - 8080:8080
       - 2181:2181
       - 2888:2888
@@ -69,11 +106,11 @@ services:
       placement:
         constraints:
           - node.role == manager
-        preferences: []
-          #- spread: node.role.manager
+        preferences:
+          - spread: node.role
 
   nodes:
-    image: pvtmert/confluent
+    image: pvtmert/confluent:latest
     #entrypoint: sh -c
     command: kafkanet
     restart: "no"
@@ -119,8 +156,8 @@ services:
       placement:
         constraints:
           - node.role == worker
-        preferences: []
-          #- spread: node.role.worker
+        preferences:
+          - spread: node.role
     healthcheck:
       test: timeout 10 bash -c 'cat </dev/null >/dev/tcp/0/9092'
       interval: 1m

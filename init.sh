@@ -20,8 +20,8 @@ FQDN=$("${DIG}" +short -x "${IP}"  | grep -v '^;;' || hostname -f)
 FQDN="${FQDN%%.}"
 
 function start {
-	"zookeeper-server-start" ${CONFLUENT_HOME}/etc/kafka/zookeeper.properties || exit &
-	"kafka-server-start"     ${CONFLUENT_HOME}/etc/kafka/server.properties    || exit &
+	"zookeeper-server-start" "${CONFLUENT_HOME}/etc/kafka/zookeeper.properties" || exit &
+	"kafka-server-start"     "${CONFLUENT_HOME}/etc/kafka/server.properties"    || exit &
 	"${DIG}" +short -x "${IP}" | printf "My PTR  is: %s\n" "$(cat)"
 	hostname -A                | printf "My FQDN is: %s\n" "$(cat)"
 	wait
@@ -62,6 +62,7 @@ unset counter
 tee -a "${CONFLUENT_HOME}/etc/kafka/server.properties" <<EOF
 advertised.listeners=PLAINTEXT://${IP}:9092
 zookeeper.connect=${FQDN}:2181
+#broker.id.generation.enable=true
 broker.id=${ID:-0}
 EOF
 
