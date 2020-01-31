@@ -163,3 +163,43 @@ services:
       interval: 1m
       timeout: 10s
       retries: 3
+
+  consumer:
+    image: pvtmert/confluent:latest
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - >
+        SERVERS="$$(dig +short kafkanet | sed 's/$$/:9092/g')";
+        kafka-console-consumer --topic hellokafka
+        --bootstrap-server $${SERVERS//$$'\n'/,}
+    restart: "no"
+    build:
+      context: ./
+      dockerfile: dockerfile
+      args: {}
+    networks:
+      - default
+
+  producer:
+    image: pvtmert/confluent:latest
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - >
+        SERVERS="$$(dig +short kafkanet | sed 's/$$/:9092/g')";
+        top -bcHid1 | kafka-console-producer --topic hellokafka
+        --broker-list $${SERVERS//$$'\n'/,}
+    restart: "no"
+    build:
+      context: ./
+      dockerfile: dockerfile
+      args: {}
+    networks:
+      - default
+
+
+# TOPIC="hellokafka"
+# SERVERS=$(dig +short kafkanet | sed 's/$/:9092/g')
+# kafka-console-consumer --topic "${TOPIC}" --bootstrap-server "${SERVERS//$'\n'/,}"
+# kafka-console-producer --topic "${TOPIC}" --broker-list "${SERVERS//$'\n'/,}"
