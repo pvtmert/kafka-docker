@@ -9,13 +9,13 @@ RUN mkdir -p "${JAVA_HOME}"; \
 	curl -#L "https://download.java.net/openjdk/jdk11/ri/openjdk-11+28_linux-x64_bin.tar.gz" \
 	| tar --strip=1 -zxC "${JAVA_HOME}"
 
-ENV CONFLUENT_HOME="/home/confluent"
-RUN mkdir -p "${CONFLUENT_HOME}" ; \
+ENV CONFLUENT_ROOT="/home/confluent"
+RUN mkdir -p "${CONFLUENT_ROOT}" ; \
 	curl -#L "https://packages.confluent.io/archive/5.3/confluent-community-5.3.2-2.12.tar.gz" \
-	| tar --strip=1 -zxC "${CONFLUENT_HOME}"
+	| tar --strip=1 -zxC "${CONFLUENT_ROOT}"
 
-ENV CONFLUENT_DATA="${CONFLUENT_HOME}/data"
-ENV PATH "${PATH}:${JAVA_HOME}/bin:${CONFLUENT_HOME}/bin"
+ENV CONFLUENT_DATA="${CONFLUENT_ROOT}/data"
+ENV PATH "${PATH}:${JAVA_HOME}/bin:${CONFLUENT_ROOT}/bin"
 RUN yum install -y bind-utils net-tools which
 COPY init.sh init.sh
 ENTRYPOINT [ "bash",  "init.sh" ]

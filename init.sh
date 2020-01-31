@@ -13,15 +13,15 @@ FQDN=$("${DIG}" +short -x "${IP}"  | grep -v '^;;' || hostname -f)
 
 : ${ID?of broker is necessary}
 : ${DNS?host is necessary}
-: ${CONFLUENT_HOME?is missing}
+: ${CONFLUENT_ROOT?is missing}
 : ${CONFLUENT_DATA?is missing}
 : ${DIG?is required to discover hosts}
 
 FQDN="${FQDN%%.}"
 
 function start {
-	"zookeeper-server-start" "${CONFLUENT_HOME}/etc/kafka/zookeeper.properties" || exit &
-	"kafka-server-start"     "${CONFLUENT_HOME}/etc/kafka/server.properties"    || exit &
+	"zookeeper-server-start" "${CONFLUENT_ROOT}/etc/kafka/zookeeper.properties" || exit &
+	"kafka-server-start"     "${CONFLUENT_ROOT}/etc/kafka/server.properties"    || exit &
 	"${DIG}" +short -x "${IP}" | printf "My PTR  is: %s\n" "$(cat)"
 	hostname -A                | printf "My FQDN is: %s\n" "$(cat)"
 	wait
@@ -37,7 +37,7 @@ touch "${INIT}"
 mkdir -p "${CONFLUENT_DATA}"
 echo "${ID:-0}" | tee "${CONFLUENT_DATA}/myid"
 
-tee "${CONFLUENT_HOME}/etc/kafka/zookeeper.properties" <<EOF
+tee "${CONFLUENT_ROOT}/etc/kafka/zookeeper.properties" <<EOF
 dataDir=${CONFLUENT_DATA}
 tickTime=2000
 initLimit=50
@@ -52,14 +52,14 @@ for ip in $("${DIG}" +short "${DNS}" | sort -Vr); do
 	echo "server.$((++counter))=${ip}:2888:3888"
 done \
 | sed "s:${IP}:0.0.0.0:g" \
-| tee -a "${CONFLUENT_HOME}/etc/kafka/zookeeper.properties"
+| tee -a "${CONFLUENT_ROOT}/etc/kafka/zookeeper.properties"
 unset counter
 
 #echo "--------"
-#cat "${CONFLUENT_HOME}/etc/kafka/zookeeper.properties"
+#cat "${CONFLUENT_ROOT}/etc/kafka/zookeeper.properties"
 #echo "--------"
 
-tee -a "${CONFLUENT_HOME}/etc/kafka/server.properties" <<EOF
+tee -a "${CONFLUENT_ROOT}/etc/kafka/server.properties" <<EOF
 advertised.listeners=PLAINTEXT://${IP}:9092
 zookeeper.connect=${FQDN}:2181
 #broker.id.generation.enable=true
