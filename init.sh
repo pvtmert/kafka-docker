@@ -18,6 +18,7 @@ FQDN=$("${DIG}" +short -x "${IP}"  | grep -v '^;;' || hostname -f)
 : ${DIG?is required to discover hosts}
 
 FQDN="${FQDN%%.}"
+PEERS=( $("${DIG}" +short "${DNS}" | sort -Vr) )
 
 function start {
 	"zookeeper-server-start" "${CONFLUENT_ROOT}/etc/kafka/zookeeper.properties" || exit &
@@ -30,9 +31,7 @@ function start {
 test -e "${INIT}" && {
 	start
 	exit
-}
-
-touch "${INIT}"
+} || touch "${INIT}"
 
 mkdir -p "${CONFLUENT_DATA}"
 echo "${ID:-0}" | tee "${CONFLUENT_DATA}/myid"
@@ -48,7 +47,7 @@ autopurge.purgeInterval=24
 #server.0=0.0.0.0:2888:3888
 EOF
 
-for ip in $("${DIG}" +short "${DNS}" | sort -Vr); do
+for ip in "${PEERS[@]}"; do
 	echo "server.$((++counter))=${ip}:2888:3888"
 done \
 | sed "s:${IP}:0.0.0.0:g" \
