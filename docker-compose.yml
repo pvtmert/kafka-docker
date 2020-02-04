@@ -78,6 +78,8 @@ services:
       --hostresolver.cnameflattening=false
       --entrypoints.enthttp=true
       --entrypoints.enthttp.address=:80
+      --entrypoints.entcmak=true
+      --entrypoints.entcmak.address=:9000
       --entrypoints.ent2181=true
       --entrypoints.ent2181.address=:2181
       --entrypoints.ent2888=true
@@ -188,7 +190,7 @@ services:
       - -c
       - >
         SERVERS="$$(dig +short kafkanet | sed 's/$$/:9092/g')";
-        top -bcHid1 | kafka-console-producer --topic hellokafka
+        top -bcHid5 | kafka-console-producer --topic hellokafka
         --broker-list $${SERVERS//$$'\n'/,}
     restart: "no"
     build:
@@ -198,6 +200,25 @@ services:
     networks:
       - default
 
+  monitor:
+    image: pvtmert/cmak:latest
+    command: -Dconfig.file=conf/application.conf
+    restart: "no"
+    networks:
+      - default
+    expose:
+      - 9000
+    environment:
+      ZK_HOSTS: kafkanet:2181
+    labels:
+      - traefik.enable=true
+      - traefik.http.services.servcmak.loadbalancer.passhostheader=true
+      - traefik.http.services.servcmak.loadbalancer.server.scheme=http
+      - traefik.http.services.servcmak.loadbalancer.server.port=9000
+      - traefik.http.routers.rtcmak.entrypoints=entcmak
+      - traefik.http.routers.rtcmak.service=servcmak
+      - traefik.http.routers.rtcmak.rule=PathPrefix(`/`)
+      - traefik.http.routers.rtcmak.tls=false
 
 # TOPIC="hellokafka"
 # SERVERS=$(dig +short kafkanet | sed 's/$/:9092/g')
