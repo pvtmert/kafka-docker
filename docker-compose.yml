@@ -99,6 +99,7 @@ services:
       - 2888:2888
       - 3888:3888
       - 9092:9092
+      - 9000:9000
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     deploy:
@@ -202,14 +203,13 @@ services:
 
   monitor:
     image: pvtmert/cmak:latest
-    command: -Dconfig.file=conf/application.conf
     restart: "no"
     networks:
       - default
     expose:
       - 9000
     environment:
-      ZK_HOSTS: kafkanet:2181
+      ZK_HOSTS: kafkanet:2181,nodes:2181
     labels:
       - traefik.enable=true
       - traefik.http.services.servcmak.loadbalancer.passhostheader=true

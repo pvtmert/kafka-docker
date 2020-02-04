@@ -21,6 +21,7 @@ FQDN="${FQDN%%.}"
 PEERS=( $("${DIG}" +short "${DNS}" | sort -Vr) )
 
 function start {
+	trap "killall java" SIGINT SIGTERM
 	"zookeeper-server-start" "${CONFLUENT_ROOT}/etc/kafka/zookeeper.properties" || exit &
 	"kafka-server-start"     "${CONFLUENT_ROOT}/etc/kafka/server.properties"    || exit &
 	"${DIG}" +short -x "${IP}" | printf "My PTR  is: %s\n" "$(cat)"
