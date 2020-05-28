@@ -17,8 +17,18 @@ FQDN=$("${DIG}" +short -x "${IP}"  | grep -v '^;;' || hostname -f)
 : ${CONFLUENT_DATA?is missing}
 : ${DIG?is required to discover hosts}
 
-FQDN="${FQDN%%.}"
+#FQDN="${FQDN%%.}"
 PEERS=( $("${DIG}" +short "${DNS}" | sort -Vr) )
+
+#JOLOKIA_PATH=/opt/jolokia/jolokia.jar
+#test -e "${JOLOKIA_PATH}" || {
+#	JOLOKIA_URL=https://github.com/rhuss/jolokia/releases/download/v1.6.2/jolokia-1.6.2-bin.tar.gz
+#	JOLOKIA_DIR="$(dirname "${JOLOKIA_PATH}")"
+#	mkdir -p "${JOLOKIA_DIR}"
+#	curl -#L "${JOLOKIA_URL}" | tar -C "${JOLOKIA_DIR}" -vxz
+#}
+
+export KAFKA_OPTS="-javaagent:${JOLOKIA_PATH}=port=8778,host=0.0.0.0"
 
 function start {
 	trap "killall java" SIGINT SIGTERM
@@ -26,6 +36,9 @@ function start {
 	"kafka-server-start"     "${CONFLUENT_ROOT}/etc/kafka/server.properties"    || exit &
 	"${DIG}" +short -x "${IP}" | printf "My PTR  is: %s\n" "$(cat)"
 	hostname -A                | printf "My FQDN is: %s\n" "$(cat)"
+	test -e "${SPLUNK_HOME}" \
+		&& runuser -p splunk -c "${SHELL} $(realpath ./splunk.sh)" \
+		| tee -a /tmp/splunk.log
 	wait
 }
 
@@ -45,7 +58,7 @@ syncLimit=20
 clientPort=2181
 autopurge.snapRetainCount=3
 autopurge.purgeInterval=24
-#server.0=0.0.0.0:2888:3888
+##server.0=0.0.0.0:2888:3888
 EOF
 
 for ip in "${PEERS[@]}"; do
@@ -61,7 +74,7 @@ unset counter
 
 tee -a "${CONFLUENT_ROOT}/etc/kafka/server.properties" <<EOF
 advertised.listeners=PLAINTEXT://${IP}:9092
-zookeeper.connect=${FQDN}:2181
+zookeeper.connect=${FQDN%%.}:2181
 #broker.id.generation.enable=true
 broker.id=${ID:-0}
 EOF

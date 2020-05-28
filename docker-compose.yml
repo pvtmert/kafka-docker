@@ -8,6 +8,11 @@ networks:
     internal: false
     external: false
 
+volumes:
+  forwarder_apps: {}
+  splunk_var: {}
+  splunk_etc: {}
+  kafka_logs: {}
 services:
 
   visual:
@@ -21,13 +26,13 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     labels:
       - traefik.enable=true
-      - traefik.http.services.servhttp.loadbalancer.passhostheader=true
-      - traefik.http.services.servhttp.loadbalancer.server.scheme=http
-      - traefik.http.services.servhttp.loadbalancer.server.port=8080
-      - traefik.http.routers.rthttp.entrypoints=enthttp
-      - traefik.http.routers.rthttp.service=servhttp
-      - traefik.http.routers.rthttp.rule=PathPrefix(`/`)
-      - traefik.http.routers.rthttp.tls=false
+      - traefik.http.services.servvisual.loadbalancer.passhostheader=true
+      - traefik.http.services.servvisual.loadbalancer.server.scheme=http
+      - traefik.http.services.servvisual.loadbalancer.server.port=8080
+      - traefik.http.routers.rtvisual.entrypoints=entvisual
+      - traefik.http.routers.rtvisual.service=servvisual
+      - traefik.http.routers.rtvisual.rule=PathPrefix(`/`)
+      - traefik.http.routers.rtvisual.tls=false
     deploy:
       endpoint_mode: vip
       mode: global
@@ -88,18 +93,25 @@ services:
       --entrypoints.ent3888.address=:3888
       --entrypoints.ent9092=true
       --entrypoints.ent9092.address=:9092
+      --entrypoints.entvisual=true
+      --entrypoints.entvisual.address=:8081
+      --entrypoints.entsplunk=true
+      --entrypoints.entsplunk.address=:8000
     networks:
       default:
         aliases:
           - traefik
     ports:
       -   80:80
+      - 8000:8000
       - 8080:8080
+      - 8081:8081
       - 2181:2181
       - 2888:2888
       - 3888:3888
       - 9092:9092
       - 9000:9000
+      - 9997:9997
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     deploy:
@@ -130,6 +142,7 @@ services:
       - 2888
       - 3888
       - 9092
+      - 8778
     labels:
       - traefik.enable=true
       - traefik.tcp.services.serv2181.loadbalancer.server.port=2181
@@ -152,6 +165,11 @@ services:
       - traefik.tcp.routers.rt9092.service=serv9092
       - traefik.tcp.routers.rt9092.rule=HostSNI(`*`)
       - traefik.tcp.routers.rt9092.tls=false
+    volumes:
+      - kafka_logs:/home/confluent/logs:rw
+      - forwarder_apps:/opt/splunkforwarder/etc/apps:rw
+    depends_on:
+      - splunk
     deploy:
       endpoint_mode: dnsrr
       mode: replicated
@@ -169,9 +187,10 @@ services:
 
   consumer:
     image: pvtmert/confluent:latest
-    entrypoint: /bin/bash
-    command:
+    entrypoint:
+      - /bin/bash
       - -c
+    command:
       - >
         SERVERS="$$(dig +short kafkanet | sed 's/$$/:9092/g')";
         kafka-console-consumer --topic hellokafka
@@ -183,12 +202,15 @@ services:
       args: {}
     networks:
       - default
+    depends_on:
+      - nodes
 
   producer:
     image: pvtmert/confluent:latest
-    entrypoint: /bin/bash
-    command:
+    entrypoint:
+      - /bin/bash
       - -c
+    command:
       - >
         SERVERS="$$(dig +short kafkanet | sed 's/$$/:9092/g')";
         top -bcHid5 | kafka-console-producer --topic hellokafka
@@ -200,6 +222,8 @@ services:
       args: {}
     networks:
       - default
+    depends_on:
+      - consumer
 
   monitor:
     image: pvtmert/cmak:latest
@@ -219,6 +243,88 @@ services:
       - traefik.http.routers.rtcmak.service=servcmak
       - traefik.http.routers.rtcmak.rule=PathPrefix(`/`)
       - traefik.http.routers.rtcmak.tls=false
+    depends_on:
+      - nodes
+
+  splunk:
+    image: splunk/splunk:7.2
+    restart: "no"
+    networks:
+      - default
+    expose:
+      - 8000
+      - 8089
+      - 9997
+    volumes:
+      - splunk_var:/opt/splunk/var:rw
+      - splunk_etc:/opt/splunk/etc:rw
+      - kafka_logs:/tmp/logs:rw
+    environment:
+      SPLUNK_START_ARGS: --accept-license
+      SPLUNK_PASSWORD: ${PASS:-password}
+    labels:
+      - traefik.enable=true
+      - traefik.http.services.servsplunk.loadbalancer.passhostheader=true
+      - traefik.http.services.servsplunk.loadbalancer.server.scheme=http
+      - traefik.http.services.servsplunk.loadbalancer.server.port=8000
+      - traefik.http.routers.rtsplunk.entrypoints=entsplunk
+      - traefik.http.routers.rtsplunk.service=servsplunk
+      - traefik.http.routers.rtsplunk.rule=PathPrefix(`/`)
+      - traefik.http.routers.rtsplunk.tls=false
+
+  extract_splunk:
+    image: centos:7
+    restart: "no"
+    entrypoint:
+      - find
+    command:
+      - /tmp
+      - -iname
+      - "*.tgz"
+      - -exec
+      - tar
+      - -C
+      - /home/splunk/apps
+      - -xvzf
+      - "{}"
+      - ";"
+    volumes:
+      - splunk_etc:/home/splunk
+      - ./plugins:/tmp:ro
+    depends_on:
+      - splunk
+
+  extract_forwarder:
+    image: centos:7
+    restart: "no"
+    entrypoint:
+      - find
+    command:
+      - /tmp
+      - -iname
+      - "*.tgz"
+      - -exec
+      - tar
+      - -C
+      - /home/splunk/apps
+      - -xvzf
+      - "{}"
+      - ";"
+    volumes:
+      - forwarder_apps:/home/splunk/apps
+      - ./plugins:/tmp:ro
+    depends_on:
+      - nodes
+
+  # forwarder:
+  #   image: splunk/universalforwarder:7.2
+  #   networks:
+  #     - default
+  #   expose:
+  #     - 9997
+  #   environment:
+  #     SPLUNK_START_ARGS: --accept-license
+  #     SPLUNK_PASSWORD: ${PASS:-password}
 
 # TOPIC="hellokafka"
 # SERVERS=$(dig +short kafkanet | sed 's/$/:9092/g')
