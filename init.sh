@@ -20,27 +20,32 @@ FQDN=$("${DIG}" +short -x "${IP}"  | grep -v '^;;' || hostname -f)
 #FQDN="${FQDN%%.}"
 PEERS=( $("${DIG}" +short "${DNS}" | sort -Vr) )
 
-#JOLOKIA_PATH=/opt/jolokia/jolokia.jar
-#test -e "${JOLOKIA_PATH}" || {
-#	JOLOKIA_URL=https://github.com/rhuss/jolokia/releases/download/v1.6.2/jolokia-1.6.2-bin.tar.gz
-#	JOLOKIA_DIR="$(dirname "${JOLOKIA_PATH}")"
-#	mkdir -p "${JOLOKIA_DIR}"
-#	curl -#L "${JOLOKIA_URL}" | tar -C "${JOLOKIA_DIR}" -vxz
-#}
-
-export KAFKA_OPTS="-javaagent:${JOLOKIA_PATH}=port=8778,host=0.0.0.0"
-
 function start {
 	trap "killall java" SIGINT SIGTERM
-	"zookeeper-server-start" "${CONFLUENT_ROOT}/etc/kafka/zookeeper.properties" || exit &
-	"kafka-server-start"     "${CONFLUENT_ROOT}/etc/kafka/server.properties"    || exit &
+	LOG_DIR="${ZOOKEEPER_LOG_DIR}" "zookeeper-server-start" "${CONFLUENT_ROOT}/etc/kafka/zookeeper.properties" || exit &
+	LOG_DIR="${KAFKA_LOG_DIR}"     "kafka-server-start"     "${CONFLUENT_ROOT}/etc/kafka/server.properties"    || exit &
 	"${DIG}" +short -x "${IP}" | printf "My PTR  is: %s\n" "$(cat)"
 	hostname -A                | printf "My FQDN is: %s\n" "$(cat)"
-	test -e "${SPLUNK_HOME}" \
-		&& runuser -p splunk -c "${SHELL} $(realpath ./splunk.sh)" \
-		| tee -a /tmp/splunk.log
+	test -e "${SPLUNK_HOME}" && which -a splunk && {
+		splunk start \
+			--accept-license \
+			--answer-yes \
+			--auto-ports \
+			--no-prompt \
+			#--gen-and-print-passwd
+		splunk add forward-server splunk:9997 \
+			-auth "${SPLUNK_USER}:${SPLUNK_PASS}"
+		splunk set deploy-poll splunk:8089 \
+			-auth "${SPLUNK_USER}:${SPLUNK_PASS}"
+		splunk add monitor "${CONFLUENT_ROOT}/logs/*.log" \
+			-auth "${SPLUNK_USER}:${SPLUNK_PASS}"
+	} &> /tmp/splunk.log
 	wait
 }
+
+for dir in "${LOG_DIR_BASE}" "${KAFKA_LOG_DIR}" "${ZOOKEEPER_LOG_DIR}"; do
+	test -e "${dir}" || mkdir -p "${dir}"
+done
 
 test -e "${INIT}" && {
 	start
@@ -73,6 +78,7 @@ unset counter
 #echo "--------"
 
 tee -a "${CONFLUENT_ROOT}/etc/kafka/server.properties" <<EOF
+controlled.shutdown.enable=true
 advertised.listeners=PLAINTEXT://${IP}:9092
 zookeeper.connect=${FQDN%%.}:2181
 #broker.id.generation.enable=true

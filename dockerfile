@@ -32,25 +32,34 @@ ENV SPLUNK_HOME=/opt/splunkforwarder
 RUN curl -#L "https://www.splunk.com/page/download_track?file=${SPLUNK_VER%%-*}/linux/splunkforwarder-${SPLUNK_VER}-Linux-$(uname -m).tgz&ac=&wget=true&name=wget&platform=Linux&architecture=$(uname -m)&version=${SPLUNK_VER%%-*}&product=universalforwarder&typed=release" \
 	| tar -xzC /opt
 
-RUN ln -sf "${SPLUNK_HOME}/bin/splunk" "/usr/local/bin/"
-
 ENV SPLUNK_USER=splunk
 ENV SPLUNK_PASS=password
+ENV SPLUNK_UID=10777
+ENV SPLUNK_GROUP=daemon
 RUN useradd -MNro \
-	-d /opt/splunkforwarder \
-	-g daemon \
-	-u 10777 \
-	"${SPLUNK_USER}"
+	-u "${SPLUNK_UID}" \
+	-d "${SPLUNK_HOME}" \
+	-g "${SPLUNK_GROUP}" \
+	-- "${SPLUNK_USER}"
 RUN passwd -f -d "${SPLUNK_USER}"
 RUN passwd -f -u "${SPLUNK_USER}"
 RUN chpasswd <<< "${SPLUNK_USER}:${SPLUNK_PASS}"
+RUN mkdir -p "${SPLUNK_HOME}/etc/system/local" && ( \
+		echo "[user_info]"               ; \
+		echo "USERNAME = ${SPLUNK_USER}" ; \
+		echo "PASSWORD = ${SPLUNK_PASS}" ; \
+	) | tee "${SPLUNK_HOME}/etc/system/local/user-seed.conf"
+RUN chown -R "${SPLUNK_USER}:${SPLUNK_GROUP}" "${SPLUNK_HOME}"
+RUN ln -sf "${SPLUNK_HOME}/bin/splunk" "/usr/local/bin/"
+
+ENV PATH="${PATH}:${JAVA_HOME}/bin:${CONFLUENT_ROOT}/bin:${SPLUNK_HOME}/bin"
+ENV KAFKA_OPTS="-javaagent:${JOLOKIA_PATH}=port=8778,host=0.0.0.0"
+ENV LOG_DIR_BASE="/var/log"
+ENV KAFKA_LOG_DIR="${LOG_DIR_BASE}/kafka"
+ENV ZOOKEEPER_LOG_DIR="${LOG_DIR_BASE}/zookeeper"
 
 ENV CONFLUENT_DATA="${CONFLUENT_ROOT}/data"
-ENV PATH="${PATH}:${JAVA_HOME}/bin:${CONFLUENT_ROOT}/bin"
-COPY \
-	splunk.sh \
-	init.sh \
-	./
+COPY init.sh ./
 ENTRYPOINT [ "bash",  "init.sh" ]
 CMD [ ]
 

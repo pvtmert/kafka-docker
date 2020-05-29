@@ -3,21 +3,31 @@
 version: "3.5"
 
 networks:
+
   default:
     driver: bridge
     internal: false
     external: false
 
 volumes:
-  forwarder_apps: {}
-  splunk_var: {}
-  splunk_etc: {}
-  kafka_logs: {}
+
+  splunk_var:
+    driver: local
+    external: false
+
+  splunk_etc:
+    driver: local
+    external: false
+
+  kafka_logs:
+    driver: local
+    external: false
+
 services:
 
   visual:
     image: dockersamples/visualizer:latest
-    restart: "no"
+    restart: "on-failure"
     networks:
       - default
     expose:
@@ -45,7 +55,7 @@ services:
 
   gateway:
     image: traefik:v2.1
-    restart: "no"
+    restart: "on-failure"
     command: |
       --api=true
       --api.debug=true
@@ -126,9 +136,9 @@ services:
 
   nodes:
     image: pvtmert/confluent:latest
+    restart: "on-failure"
     #entrypoint: sh -c
     command: kafkanet
-    restart: "no"
     build:
       context: ./
       dockerfile: dockerfile
@@ -167,7 +177,6 @@ services:
       - traefik.tcp.routers.rt9092.tls=false
     volumes:
       - kafka_logs:/home/confluent/logs:rw
-      - forwarder_apps:/opt/splunkforwarder/etc/apps:rw
     depends_on:
       - splunk
     deploy:
@@ -187,15 +196,37 @@ services:
 
   consumer:
     image: pvtmert/confluent:latest
+    restart: "on-failure"
     entrypoint:
       - /bin/bash
-      - -c
+      - -xc
     command:
       - >
         SERVERS="$$(dig +short kafkanet | sed 's/$$/:9092/g')";
         kafka-console-consumer --topic hellokafka
-        --bootstrap-server $${SERVERS//$$'\n'/,}
-    restart: "no"
+        --bootstrap-server $${SERVERS//$$'\n'/,} &
+        wait
+    build:
+      context: ./
+      dockerfile: dockerfile
+      args: {}
+    networks:
+      - default
+    depends_on:
+      - producer
+
+  producer:
+    image: pvtmert/confluent:latest
+    restart: "on-failure"
+    entrypoint:
+      - /bin/bash
+      - -xc
+    command:
+      - >
+        SERVERS="$$(dig +short kafkanet | sed 's/$$/:9092/g')";
+        top -bcHid5 | kafka-console-producer --topic hellokafka
+        --broker-list $${SERVERS//$$'\n'/,} &
+        wait
     build:
       context: ./
       dockerfile: dockerfile
@@ -205,29 +236,9 @@ services:
     depends_on:
       - nodes
 
-  producer:
-    image: pvtmert/confluent:latest
-    entrypoint:
-      - /bin/bash
-      - -c
-    command:
-      - >
-        SERVERS="$$(dig +short kafkanet | sed 's/$$/:9092/g')";
-        top -bcHid5 | kafka-console-producer --topic hellokafka
-        --broker-list $${SERVERS//$$'\n'/,}
-    restart: "no"
-    build:
-      context: ./
-      dockerfile: dockerfile
-      args: {}
-    networks:
-      - default
-    depends_on:
-      - consumer
-
   monitor:
     image: pvtmert/cmak:latest
-    restart: "no"
+    restart: "on-failure"
     networks:
       - default
     expose:
@@ -244,11 +255,11 @@ services:
       - traefik.http.routers.rtcmak.rule=PathPrefix(`/`)
       - traefik.http.routers.rtcmak.tls=false
     depends_on:
-      - nodes
+      - gateway
 
   splunk:
     image: splunk/splunk:7.2
-    restart: "no"
+    restart: "on-failure"
     networks:
       - default
     expose:
@@ -260,8 +271,10 @@ services:
       - splunk_etc:/opt/splunk/etc:rw
       - kafka_logs:/tmp/logs:rw
     environment:
+      #SPLUNK_LICENSE_URI: Free
       SPLUNK_START_ARGS: --accept-license
       SPLUNK_PASSWORD: ${PASS:-password}
+      SPLUNK_USERNAME: ${USER:-admin}
     labels:
       - traefik.enable=true
       - traefik.http.services.servsplunk.loadbalancer.passhostheader=true
@@ -272,59 +285,29 @@ services:
       - traefik.http.routers.rtsplunk.rule=PathPrefix(`/`)
       - traefik.http.routers.rtsplunk.tls=false
 
-  extract_splunk:
+  extract:
     image: centos:7
-    restart: "no"
+    restart: "on-failure"
     entrypoint:
-      - find
+      - /bin/bash
+      - -xc
     command:
-      - /tmp
-      - -iname
-      - "*.tgz"
-      - -exec
-      - tar
-      - -C
-      - /home/splunk/apps
-      - -xvzf
-      - "{}"
-      - ";"
+      - |
+        until test -e /home/apps; do sleep 1; done
+        find /tmp -iname "*.tgz" -exec tar -C /home/apps -xzf "{}" ";"
+        until test -e /home/deployment-apps; do sleep 1; done
+        find /tmp -iname "*.tgz" -exec tar -C /home/deployment-apps -xzf "{}" ";"
+        sed 's:^disabled = true$$:disabled = false:g' \
+          /home/deployment-apps/TA-kafka-streaming-platform/default/inputs.conf.sample \
+          | /home/deployment-apps/TA-kafka-streaming-platform/local/inputs.conf
+        chown --reference=/home -vR /home
+        chgrp --reference=/home -vR /home
+        exit
     volumes:
-      - splunk_etc:/home/splunk
       - ./plugins:/tmp:ro
+      - splunk_etc:/home:rw
     depends_on:
       - splunk
-
-  extract_forwarder:
-    image: centos:7
-    restart: "no"
-    entrypoint:
-      - find
-    command:
-      - /tmp
-      - -iname
-      - "*.tgz"
-      - -exec
-      - tar
-      - -C
-      - /home/splunk/apps
-      - -xvzf
-      - "{}"
-      - ";"
-    volumes:
-      - forwarder_apps:/home/splunk/apps
-      - ./plugins:/tmp:ro
-    depends_on:
-      - nodes
-
-  # forwarder:
-  #   image: splunk/universalforwarder:7.2
-  #   networks:
-  #     - default
-  #   expose:
-  #     - 9997
-  #   environment:
-  #     SPLUNK_START_ARGS: --accept-license
-  #     SPLUNK_PASSWORD: ${PASS:-password}
 
 # TOPIC="hellokafka"
 # SERVERS=$(dig +short kafkanet | sed 's/$/:9092/g')
