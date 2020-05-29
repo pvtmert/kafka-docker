@@ -299,7 +299,7 @@ services:
         find /tmp -iname "*.tgz" -exec tar -C /home/deployment-apps -xzf "{}" ";"
         sed 's:^disabled = true$$:disabled = false:g' \
           /home/deployment-apps/TA-kafka-streaming-platform/default/inputs.conf.sample \
-          | /home/deployment-apps/TA-kafka-streaming-platform/local/inputs.conf
+          | tee /home/deployment-apps/TA-kafka-streaming-platform/local/inputs.conf
         chown --reference=/home -vR /home
         chgrp --reference=/home -vR /home
         exit
