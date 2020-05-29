@@ -1,2 +1,4 @@
+plugins/*.tgz
 *.tar.gz
 *.jar
+*.gz
