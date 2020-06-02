@@ -25,116 +25,6 @@ volumes:
 
 services:
 
-  visual:
-    image: dockersamples/visualizer:latest
-    restart: "on-failure"
-    networks:
-      - default
-    expose:
-      - 8080
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    labels:
-      - traefik.enable=true
-      - traefik.http.services.servvisual.loadbalancer.passhostheader=true
-      - traefik.http.services.servvisual.loadbalancer.server.scheme=http
-      - traefik.http.services.servvisual.loadbalancer.server.port=8080
-      - traefik.http.routers.rtvisual.entrypoints=entvisual
-      - traefik.http.routers.rtvisual.service=servvisual
-      - traefik.http.routers.rtvisual.rule=PathPrefix(`/`)
-      - traefik.http.routers.rtvisual.tls=false
-    deploy:
-      endpoint_mode: vip
-      mode: global
-      #replicas: 0
-      placement:
-        constraints:
-          - node.role == manager
-        preferences:
-          - spread: node.role
-
-  gateway:
-    image: traefik:v2.1
-    restart: "on-failure"
-    hostname: gateway
-    command: |
-      --api=true
-      --api.debug=true
-      --api.insecure=true
-      --api.dashboard=true
-      --metrics=false
-      --metrics.datadog=true
-      --metrics.datadog.address=0.0.0.0:8125
-      --metrics.datadog.addServicesLabels=true
-      --metrics.datadog.addEntryPointsLabels=true
-      --metrics.influxdb=true
-      --metrics.influxdb.address=0.0.0.0:8089
-      --metrics.influxdb.database=db
-      --metrics.influxdb.retentionPolicy=two_hours
-      --metrics.influxdb.addEntryPointsLabels=true
-      --metrics.influxdb.addServicesLabels=true
-      --tracing=false
-      --tracing.serviceName=traefik
-      --tracing.datadog=true
-      --tracing.datadog.debug=false
-      --tracing.datadog.localAgentHostPort=0.0.0.0:8126
-      --accesslog=true
-      --accesslog.format=json
-      --accesslog.filepath=/tmp/access.log
-      --providers.docker=true
-      --providers.docker.swarmMode=false
-      --providers.docker.useBindPortIP=true
-      --providers.docker.exposedByDefault=false
-      --ping=true
-      --ping.entrypoint=enthttp
-      --log.filePath=/tmp/traefik.log
-      --log.format=json
-      --log.level=DEBUG
-      --hostresolver=false
-      --hostresolver.cnameflattening=false
-      --entrypoints.enthttp=true
-      --entrypoints.enthttp.address=:80
-      --entrypoints.entcmak=true
-      --entrypoints.entcmak.address=:9000
-      --entrypoints.ent2181=true
-      --entrypoints.ent2181.address=:2181
-      --entrypoints.ent2888=true
-      --entrypoints.ent2888.address=:2888
-      --entrypoints.ent3888=true
-      --entrypoints.ent3888.address=:3888
-      --entrypoints.ent9092=true
-      --entrypoints.ent9092.address=:9092
-      --entrypoints.entvisual=true
-      --entrypoints.entvisual.address=:8081
-      --entrypoints.entsplunk=true
-      --entrypoints.entsplunk.address=:8000
-    networks:
-      default:
-        aliases:
-          - traefik
-    ports:
-      -   80:80
-      - 8000:8000
-      - 8080:8080
-      - 8081:8081
-      - 2181:2181
-      - 2888:2888
-      - 3888:3888
-      - 9092:9092
-      - 9000:9000
-      - 9997:9997
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    deploy:
-      endpoint_mode: vip
-      mode: replicated
-      replicas: 1
-      placement:
-        constraints:
-          - node.role == manager
-        preferences:
-          - spread: node.role
-
   nodes:
     image: pvtmert/confluent:latest
     restart: "on-failure"
@@ -157,28 +47,7 @@ services:
       - 8772
       - 9991
       - 9992
-    labels:
-      - traefik.enable=true
-      - traefik.tcp.services.serv2181.loadbalancer.server.port=2181
-      - traefik.tcp.services.serv2888.loadbalancer.server.port=2888
-      - traefik.tcp.services.serv3888.loadbalancer.server.port=3888
-      - traefik.tcp.services.serv9092.loadbalancer.server.port=9092
-      - traefik.tcp.routers.rt2181.entrypoints=ent2181
-      - traefik.tcp.routers.rt2181.service=serv2181
-      - traefik.tcp.routers.rt2181.rule=HostSNI(`*`)
-      - traefik.tcp.routers.rt2181.tls=false
-      - traefik.tcp.routers.rt2888.entrypoints=ent2888
-      - traefik.tcp.routers.rt2888.service=serv2888
-      - traefik.tcp.routers.rt2888.rule=HostSNI(`*`)
-      - traefik.tcp.routers.rt2888.tls=false
-      - traefik.tcp.routers.rt3888.entrypoints=ent3888
-      - traefik.tcp.routers.rt3888.service=serv3888
-      - traefik.tcp.routers.rt3888.rule=HostSNI(`*`)
-      - traefik.tcp.routers.rt3888.tls=false
-      - traefik.tcp.routers.rt9092.entrypoints=ent9092
-      - traefik.tcp.routers.rt9092.service=serv9092
-      - traefik.tcp.routers.rt9092.rule=HostSNI(`*`)
-      - traefik.tcp.routers.rt9092.tls=false
+    labels: []
     volumes:
       - kafka_logs:/home/confluent/logs:rw
     environment:
@@ -253,19 +122,13 @@ services:
       - default
     expose:
       - 9000
+    ports:
+      - 9000:9000/tcp
     environment:
       ZK_HOSTS: kafkanet:2181,nodes:2181
-    labels:
-      - traefik.enable=true
-      - traefik.http.services.servcmak.loadbalancer.passhostheader=true
-      - traefik.http.services.servcmak.loadbalancer.server.scheme=http
-      - traefik.http.services.servcmak.loadbalancer.server.port=9000
-      - traefik.http.routers.rtcmak.entrypoints=entcmak
-      - traefik.http.routers.rtcmak.service=servcmak
-      - traefik.http.routers.rtcmak.rule=PathPrefix(`/`)
-      - traefik.http.routers.rtcmak.tls=false
+    labels: []
     depends_on:
-      - gateway
+      - nodes
 
   splunk:
     image: splunk/splunk:7.2
@@ -278,6 +141,8 @@ services:
       - 8088
       - 8089
       - 9997
+    ports:
+      - 8000:8000/tcp
     volumes:
       - splunk_var:/opt/splunk/var:rw
       - splunk_etc:/opt/splunk/etc:rw
@@ -288,16 +153,7 @@ services:
       #SPLUNK_LICENSE_URI: Free
       SPLUNK_START_ARGS: --accept-license
       SPLUNK_PASSWORD: ${PASS:-password}
-      SPLUNK_USERNAME: ${USER:-admin}
-    labels:
-      - traefik.enable=true
-      - traefik.http.services.servsplunk.loadbalancer.passhostheader=true
-      - traefik.http.services.servsplunk.loadbalancer.server.scheme=http
-      - traefik.http.services.servsplunk.loadbalancer.server.port=8000
-      - traefik.http.routers.rtsplunk.entrypoints=entsplunk
-      - traefik.http.routers.rtsplunk.service=servsplunk
-      - traefik.http.routers.rtsplunk.rule=PathPrefix(`/`)
-      - traefik.http.routers.rtsplunk.tls=false
+    labels: []
 
   extract:
     image: centos:7
@@ -308,52 +164,25 @@ services:
     command:
       - |
 
+        mkdir -p "/home/system/local"
+        cp -vf "/configs/indexes.conf"  "/home/system/local/indexes.conf"
+        cp -vf "/configs/serverclass.conf" "/home/system/local/serverclass.conf"
+
         until test -e /home/apps; do sleep 1; done
-        find /tmp -iname "*.tgz" -exec tar -C /home/apps -xzf "{}" ";"
+        find /configs/plugins -iname "*.tgz" -exec tar -C /home/apps -xzf "{}" ";"
 
         until test -e /home/deployment-apps; do sleep 1; done
-        find /tmp -iname "*.tgz" -exec tar -C /home/deployment-apps -xzf "{}" ";"
+        find /configs/plugins -iname "*.tgz" -exec tar -C /home/deployment-apps -xzf "{}" ";"
 
         mkdir -p "/home/apps/TA-kafka-streaming-platform/local"
         sed 's:^disabled = true$$:disabled = false:g' \
           "/home/apps/TA-kafka-streaming-platform/default/inputs.conf.sample" \
           | tee "/home/apps/TA-kafka-streaming-platform/local/inputs.conf"
 
-        mkdir -p "/home/apps/TA-kafka-streaming-platform/local"
+        mkdir -p "/home/deployment-apps/TA-kafka-streaming-platform/local"
         sed 's:^disabled = true$$:disabled = false:g' \
           "/home/deployment-apps/TA-kafka-streaming-platform/default/inputs.conf.sample" \
           | tee "/home/deployment-apps/TA-kafka-streaming-platform/local/inputs.conf"
-
-        tee "/home/system/local/serverclass.conf" <<-EOF
-          [serverClass:kafkaclass:app:TA-kafka-streaming-platform]
-          restartSplunkWeb = 1
-          restartSplunkd = 1
-          stateOnClient = enabled
-
-          [serverClass:kafkaclass:app:telegraf-os]
-          restartSplunkWeb = 1
-          restartSplunkd = 1
-          stateOnClient = enabled
-
-          [serverClass:kafkaclass:app:TA-influxdata-telegraf]
-          restartSplunkWeb = 1
-          restartSplunkd = 1
-          stateOnClient = enabled
-
-          [serverClass:kafkaclass:app:telegraf-kafka]
-          restartSplunkWeb = 1
-          restartSplunkd = 1
-          stateOnClient = enabled
-
-          [serverClass:kafkaclass:app:TA-telegraf-amd64]
-          restartSplunkWeb = 1
-          restartSplunkd = 1
-          stateOnClient = enabled
-
-          [serverClass:kafkaclass]
-          whitelist.0 = *.kafka
-          whitelist.1 = *.kafka_default
-        EOF
 
         mkdir -p "/home/apps/TA-telegraf-amd64/local"
         tee -a "/home/apps/TA-telegraf-amd64/local/inputs.conf" <<-EOF
@@ -370,6 +199,10 @@ services:
 
         mkdir -p "/home/deployment-apps/TA-telegraf-amd64/local"
         tee -a "/home/deployment-apps/TA-telegraf-amd64/local/inputs.conf" <<-EOF
+
+          [http]
+          disabled = 0
+
           [http://Telegraf]
           disabled = 0
           index = telegraf
@@ -377,88 +210,17 @@ services:
           token = 8715c2d1-94af-4927-908a-23408c374328
         EOF
 
-        mkdir -p "/home/system/local"
-        cp "/home/system/default/indexes.conf" "/home/system/local/indexes.conf"
-        tee -a "/home/system/local/indexes.conf" <<-EOF
-
-          [telegraf]
-          datatype = event
-          homePath = \$$SPLUNK_DB/telegraf/db
-          thawedPath = \$$SPLUNK_DB/telegraf/thaweddb
-          coldPath = \$$SPLUNK_DB/telegraf/colddb
-          #coldToFrozenDir = /app/archive/telegraf
-          maxDataSize = auto
-          maxHotBuckets = auto
-          maxWarmDBCount = auto
-          maxTotalDataSizeMB = auto
-          frozenTimePeriodInSecs = auto
-
-          [kafka]
-          datatype = event
-          homePath = \$$SPLUNK_DB/kafka/db
-          thawedPath = \$$SPLUNK_DB/kafka/thaweddb
-          coldPath = \$$SPLUNK_DB/kafka/colddb
-          #coldToFrozenDir = /app/archive/kafka
-          maxDataSize = auto
-          maxHotBuckets = auto
-          maxWarmDBCount = auto
-          maxTotalDataSizeMB = auto
-          frozenTimePeriodInSecs = auto
-
-          [telegraf_kafka]
-          datatype = metric
-          homePath = \$$SPLUNK_DB/telegraf_kafka/db
-          thawedPath = \$$SPLUNK_DB/telegraf_kafka/thaweddb
-          coldPath = \$$SPLUNK_DB/telegraf_kafka/colddb
-          #coldToFrozenDir = /app/archive/telegraf_kafka
-          maxDataSize = auto
-          maxHotBuckets = auto
-          maxWarmDBCount = auto
-          maxTotalDataSizeMB = auto
-          frozenTimePeriodInSecs = auto
-
-        EOF
-        cp -vf /etc/telegraf.conf /home/apps/TA-telegraf-amd64/local/telegraf.conf
-        cp -vf /etc/telegraf.conf /home/deployment-apps/TA-telegraf-amd64/local/telegraf.conf
+        cp -vf "/configs/telegraf.conf" "/home/apps/TA-telegraf-amd64/local/telegraf.conf"
+        cp -vf "/configs/telegraf.conf" "/home/deployment-apps/TA-telegraf-amd64/local/telegraf.conf"
 
         chown --reference=/home -R /home
         chgrp --reference=/home -R /home
         exit
     volumes:
-      - ./plugins:/tmp:ro
+      - ./:/configs:ro
       - splunk_etc:/home:rw
-      - ./telegraf.conf:/etc/telegraf.conf:ro
     depends_on:
       - splunk
-
-  # telegraf:
-  #   image: telegraf:latest
-  #   restart: always
-  #   environment:
-  #     env: "docker_env"
-  #     label: "testing"
-  #     host: "telegraf"
-  #     HOST_PROC: /proc
-  #     HOST_SYS: /sys
-  #     HOST_ETC: /etc
-  #     SPLUNK_HEC_URL: "https://splunk:8088"
-  #     SPLUNK_HEC_TOKEN: "205d43f1-2a31-4e60-a8b3-327eda49944a"
-  #   hostname: telegraf
-  #   logging:
-  #     driver: splunk
-  #     options:
-  #       splunk-token: "11113ee7-919e-4dc3-bde6-da10a2ac6709"
-  #       splunk-url: "https://splunk:8088"
-  #       splunk-insecureskipverify: "true"
-  #       splunk-verify-connection: "false"
-  #       splunk-sourcetype: "docker:telegraf"
-  #       tag: "{{.ImageName}}/{{.Name}}/{{.ID}}"
-  #       env: "env,label,host"
-  #   depends_on:
-  #     - nodes
-  #   volumes:
-  #     - ./telegraf.conf:/etc/telegraf/telegraf.conf:ro
-  #     - /var/run/docker.sock:/var/run/docker.sock:ro
 
 # TOPIC="hellokafka"
 # SERVERS=$(dig +short kafkanet | sed 's/$/:9092/g')
