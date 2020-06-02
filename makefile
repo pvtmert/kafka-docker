@@ -1,7 +1,10 @@
 #!/usr/bin/env make -f
 
-all:
+all: build start
 	# none
+
+build: ./dockerfile
+	$^ .
 
 start: ./docker-compose.yml
 	$^ up -d
@@ -10,6 +13,9 @@ start: ./docker-compose.yml
 stop: ./docker-compose.yml
 	$^ kill
 	$^ down -v
+
+logs: ./docker-compose.yml
+	$^ logs -tf
 
 %: ./docker-compose.yml
 	$^ exec $@ bash

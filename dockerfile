@@ -53,7 +53,6 @@ RUN chown -R "${SPLUNK_USER}:${SPLUNK_GROUP}" "${SPLUNK_HOME}"
 RUN ln -sf "${SPLUNK_HOME}/bin/splunk" "/usr/local/bin/"
 
 ENV PATH="${PATH}:${JAVA_HOME}/bin:${CONFLUENT_ROOT}/bin:${SPLUNK_HOME}/bin"
-ENV KAFKA_OPTS="-javaagent:${JOLOKIA_PATH}=port=8778,host=0.0.0.0"
 ENV LOG_DIR_BASE="/var/log"
 ENV KAFKA_LOG_DIR="${LOG_DIR_BASE}/kafka"
 ENV ZOOKEEPER_LOG_DIR="${LOG_DIR_BASE}/zookeeper"

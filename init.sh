@@ -22,8 +22,18 @@ PEERS=( $("${DIG}" +short "${DNS}" | sort -Vr) )
 
 function start {
 	trap "killall java" SIGINT SIGTERM
-	LOG_DIR="${ZOOKEEPER_LOG_DIR}" "zookeeper-server-start" "${CONFLUENT_ROOT}/etc/kafka/zookeeper.properties" || exit &
-	LOG_DIR="${KAFKA_LOG_DIR}"     "kafka-server-start"     "${CONFLUENT_ROOT}/etc/kafka/server.properties"    || exit &
+	ZOOKEEPER=true \
+	JMX_PORT=9991 \
+	LOG_DIR="${ZOOKEEPER_LOG_DIR}" \
+	KAFKA_OPTS="-javaagent:${JOLOKIA_PATH}=port=8771,host=0.0.0.0" \
+		"zookeeper-server-start" \
+		"${CONFLUENT_ROOT}/etc/kafka/zookeeper.properties" || exit &
+	KAFKA=true \
+	JMX_PORT=9992 \
+	LOG_DIR="${KAFKA_LOG_DIR}" \
+	KAFKA_OPTS="-javaagent:${JOLOKIA_PATH}=port=8772,host=0.0.0.0" \
+		"kafka-server-start" \
+		"${CONFLUENT_ROOT}/etc/kafka/server.properties"    || exit &
 	"${DIG}" +short -x "${IP}" | printf "My PTR  is: %s\n" "$(cat)"
 	hostname -A                | printf "My FQDN is: %s\n" "$(cat)"
 	test -e "${SPLUNK_HOME}" && which -a splunk && {

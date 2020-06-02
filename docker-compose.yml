@@ -56,6 +56,7 @@ services:
   gateway:
     image: traefik:v2.1
     restart: "on-failure"
+    hostname: gateway
     command: |
       --api=true
       --api.debug=true
@@ -152,7 +153,10 @@ services:
       - 2888
       - 3888
       - 9092
-      - 8778
+      - 8771
+      - 8772
+      - 9991
+      - 9992
     labels:
       - traefik.enable=true
       - traefik.tcp.services.serv2181.loadbalancer.server.port=2181
@@ -177,6 +181,9 @@ services:
       - traefik.tcp.routers.rt9092.tls=false
     volumes:
       - kafka_logs:/home/confluent/logs:rw
+    environment:
+      SPLUNK_HEC_URL: https://splunk:8088
+      SPLUNK_HEC_TOKEN: 8715c2d1-94af-4927-908a-23408c374328
     depends_on:
       - splunk
     deploy:
@@ -197,6 +204,7 @@ services:
   consumer:
     image: pvtmert/confluent:latest
     restart: "on-failure"
+    hostname: consumer
     entrypoint:
       - /bin/bash
       - -xc
@@ -218,6 +226,7 @@ services:
   producer:
     image: pvtmert/confluent:latest
     restart: "on-failure"
+    hostname: producer
     entrypoint:
       - /bin/bash
       - -xc
@@ -239,6 +248,7 @@ services:
   monitor:
     image: pvtmert/cmak:latest
     restart: "on-failure"
+    hostname: splunk
     networks:
       - default
     expose:
@@ -260,10 +270,12 @@ services:
   splunk:
     image: splunk/splunk:7.2
     restart: "on-failure"
+    hostname: splunk
     networks:
       - default
     expose:
       - 8000
+      - 8088
       - 8089
       - 9997
     volumes:
@@ -271,6 +283,8 @@ services:
       - splunk_etc:/opt/splunk/etc:rw
       - kafka_logs:/tmp/logs:rw
     environment:
+      SPLUNK_HEC_URL: https://splunk:8088
+      SPLUNK_HEC_TOKEN: 8715c2d1-94af-4927-908a-23408c374328
       #SPLUNK_LICENSE_URI: Free
       SPLUNK_START_ARGS: --accept-license
       SPLUNK_PASSWORD: ${PASS:-password}
@@ -293,14 +307,23 @@ services:
       - -xc
     command:
       - |
+
         until test -e /home/apps; do sleep 1; done
         find /tmp -iname "*.tgz" -exec tar -C /home/apps -xzf "{}" ";"
+
         until test -e /home/deployment-apps; do sleep 1; done
         find /tmp -iname "*.tgz" -exec tar -C /home/deployment-apps -xzf "{}" ";"
-        mkdir -p "/home/deployment-apps/TA-kafka-streaming-platform/local"
+
+        mkdir -p "/home/apps/TA-kafka-streaming-platform/local"
+        sed 's:^disabled = true$$:disabled = false:g' \
+          "/home/apps/TA-kafka-streaming-platform/default/inputs.conf.sample" \
+          | tee "/home/apps/TA-kafka-streaming-platform/local/inputs.conf"
+
+        mkdir -p "/home/apps/TA-kafka-streaming-platform/local"
         sed 's:^disabled = true$$:disabled = false:g' \
           "/home/deployment-apps/TA-kafka-streaming-platform/default/inputs.conf.sample" \
           | tee "/home/deployment-apps/TA-kafka-streaming-platform/local/inputs.conf"
+
         tee "/home/system/local/serverclass.conf" <<-EOF
           [serverClass:kafkaclass:app:TA-kafka-streaming-platform]
           restartSplunkWeb = 1
@@ -330,6 +353,19 @@ services:
           [serverClass:kafkaclass]
           whitelist.0 = *.kafka
           whitelist.1 = *.kafka_default
+        EOF
+
+        mkdir -p "/home/apps/TA-telegraf-amd64/local"
+        tee -a "/home/apps/TA-telegraf-amd64/local/inputs.conf" <<-EOF
+
+          [http]
+          disabled = 0
+
+          [http://Telegraf]
+          disabled = 0
+          index = telegraf
+          indexes = telegraf
+          token = 8715c2d1-94af-4927-908a-23408c374328
         EOF
 
         mkdir -p "/home/deployment-apps/TA-telegraf-amd64/local"
@@ -382,6 +418,8 @@ services:
           frozenTimePeriodInSecs = auto
 
         EOF
+        cp -vf /etc/telegraf.conf /home/apps/TA-telegraf-amd64/local/telegraf.conf
+        cp -vf /etc/telegraf.conf /home/deployment-apps/TA-telegraf-amd64/local/telegraf.conf
 
         chown --reference=/home -R /home
         chgrp --reference=/home -R /home
@@ -389,8 +427,38 @@ services:
     volumes:
       - ./plugins:/tmp:ro
       - splunk_etc:/home:rw
+      - ./telegraf.conf:/etc/telegraf.conf:ro
     depends_on:
       - splunk
+
+  # telegraf:
+  #   image: telegraf:latest
+  #   restart: always
+  #   environment:
+  #     env: "docker_env"
+  #     label: "testing"
+  #     host: "telegraf"
+  #     HOST_PROC: /proc
+  #     HOST_SYS: /sys
+  #     HOST_ETC: /etc
+  #     SPLUNK_HEC_URL: "https://splunk:8088"
+  #     SPLUNK_HEC_TOKEN: "205d43f1-2a31-4e60-a8b3-327eda49944a"
+  #   hostname: telegraf
+  #   logging:
+  #     driver: splunk
+  #     options:
+  #       splunk-token: "11113ee7-919e-4dc3-bde6-da10a2ac6709"
+  #       splunk-url: "https://splunk:8088"
+  #       splunk-insecureskipverify: "true"
+  #       splunk-verify-connection: "false"
+  #       splunk-sourcetype: "docker:telegraf"
+  #       tag: "{{.ImageName}}/{{.Name}}/{{.ID}}"
+  #       env: "env,label,host"
+  #   depends_on:
+  #     - nodes
+  #   volumes:
+  #     - ./telegraf.conf:/etc/telegraf/telegraf.conf:ro
+  #     - /var/run/docker.sock:/var/run/docker.sock:ro
 
 # TOPIC="hellokafka"
 # SERVERS=$(dig +short kafkanet | sed 's/$/:9092/g')
