@@ -23,18 +23,18 @@ PEERS=( $("${DIG}" +short "${DNS}" | sort -Vr) )
 function start {
 	trap "
 		kafka-server-stop;
-		sleep 15;
+		sleep 5;
 		zookeeper-server-stop;
-		sleep 15;
+		sleep 5;
 		killall java;
-	" SIGHUP SIGINT SIGTERM EXIT
+	" SIGINT SIGTERM
 	ZOOKEEPER=true \
 	JMX_PORT=9991 \
 	LOG_DIR="${ZOOKEEPER_LOG_DIR}" \
 	KAFKA_OPTS="-javaagent:${JOLOKIA_PATH}=port=8771,host=0.0.0.0" \
 		"zookeeper-server-start" \
 		"${CONFLUENT_ROOT}/etc/kafka/zookeeper.properties" || exit &
-	sleep 15
+	sleep 5
 	KAFKA=true \
 	JMX_PORT=9992 \
 	LOG_DIR="${KAFKA_LOG_DIR}" \
@@ -74,8 +74,6 @@ echo "${ID:-0}" | tee "${CONFLUENT_DATA}/zookeeper/myid"
 
 tee "${CONFLUENT_ROOT}/etc/kafka/zookeeper.properties" <<EOF
 dataDir=${CONFLUENT_DATA}/zookeeper
-maxSessionTimeout=1000
-minSessionTimeout=5000
 tickTime=2000
 initLimit=50
 syncLimit=20
@@ -100,9 +98,10 @@ tee -a "${CONFLUENT_ROOT}/etc/kafka/server.properties" <<EOF
 log.dirs=${CONFLUENT_ROOT}/kafka-logs
 controlled.shutdown.enable=true
 advertised.listeners=PLAINTEXT://${IP}:9092
-zookeeper.connect=${FQDN%%.}:2181
+#advertised.listeners=PLAINTEXT://${HOSTNAME}:9092
+zookeeper.connect=${FQDN%%.}:2181,${HOSTNAME}:2181
 #broker.id.generation.enable=true
-broker.id=${ID:-0}
+broker.id=${ID:-"-1"}
 EOF
 
 start
