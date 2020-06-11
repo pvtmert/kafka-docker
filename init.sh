@@ -21,13 +21,20 @@ FQDN=$("${DIG}" +short -x "${IP}"  | grep -v '^;;' || hostname -f)
 PEERS=( $("${DIG}" +short "${DNS}" | sort -Vr) )
 
 function start {
-	trap "killall java" SIGINT SIGTERM
+	trap "
+		kafka-server-stop;
+		sleep 15;
+		zookeeper-server-stop;
+		sleep 15;
+		killall java;
+	" SIGHUP SIGINT SIGTERM EXIT
 	ZOOKEEPER=true \
 	JMX_PORT=9991 \
 	LOG_DIR="${ZOOKEEPER_LOG_DIR}" \
 	KAFKA_OPTS="-javaagent:${JOLOKIA_PATH}=port=8771,host=0.0.0.0" \
 		"zookeeper-server-start" \
 		"${CONFLUENT_ROOT}/etc/kafka/zookeeper.properties" || exit &
+	sleep 15
 	KAFKA=true \
 	JMX_PORT=9992 \
 	LOG_DIR="${KAFKA_LOG_DIR}" \
@@ -62,11 +69,13 @@ test -e "${INIT}" && {
 	exit
 } || touch "${INIT}"
 
-mkdir -p "${CONFLUENT_DATA}"
-echo "${ID:-0}" | tee "${CONFLUENT_DATA}/myid"
+mkdir -p "${CONFLUENT_DATA}/zookeeper"
+echo "${ID:-0}" | tee "${CONFLUENT_DATA}/zookeeper/myid"
 
 tee "${CONFLUENT_ROOT}/etc/kafka/zookeeper.properties" <<EOF
-dataDir=${CONFLUENT_DATA}
+dataDir=${CONFLUENT_DATA}/zookeeper
+maxSessionTimeout=1000
+minSessionTimeout=5000
 tickTime=2000
 initLimit=50
 syncLimit=20
@@ -88,6 +97,7 @@ unset counter
 #echo "--------"
 
 tee -a "${CONFLUENT_ROOT}/etc/kafka/server.properties" <<EOF
+log.dirs=${CONFLUENT_ROOT}/kafka-logs
 controlled.shutdown.enable=true
 advertised.listeners=PLAINTEXT://${IP}:9092
 zookeeper.connect=${FQDN%%.}:2181

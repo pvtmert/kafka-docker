@@ -1,10 +1,15 @@
 #!/usr/bin/env make -f
 
+REPLICAS := 3
+
 all: build start
 	# none
 
 build: ./dockerfile
 	$^ .
+
+cluster: ./docker-compose.yml
+	$^ up -d --scale nodes=$(REPLICAS)
 
 start: ./docker-compose.yml
 	$^ up -d

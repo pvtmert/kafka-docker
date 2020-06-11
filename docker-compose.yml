@@ -52,7 +52,7 @@ services:
       - kafka_logs:/home/confluent/logs:rw
     environment:
       SPLUNK_HEC_URL: https://splunk:8088
-      SPLUNK_HEC_TOKEN: 8715c2d1-94af-4927-908a-23408c374328
+      SPLUNK_HEC_TOKEN: 5040c76a-d21d-42dc-8971-89324dc7f58f
     depends_on:
       - splunk
     deploy:
@@ -114,7 +114,7 @@ services:
     depends_on:
       - nodes
 
-  monitor:
+  manager:
     image: pvtmert/cmak:latest
     restart: "on-failure"
     hostname: splunk
@@ -126,6 +126,9 @@ services:
       - 9000:9000/tcp
     environment:
       ZK_HOSTS: kafkanet:2181,nodes:2181
+      KAFKA_MANAGER_USERNAME: ${USER:-admin}
+      KAFKA_MANAGER_PASSWORD: ${PASS:-password}
+      KAFKA_MANAGER_AUTH_ENABLED: "true"
     labels: []
     depends_on:
       - nodes
@@ -144,15 +147,19 @@ services:
     ports:
       - 8000:8000/tcp
     volumes:
+      - kafka_logs:/tmp/logs:rw
       - splunk_var:/opt/splunk/var:rw
       - splunk_etc:/opt/splunk/etc:rw
-      - kafka_logs:/tmp/logs:rw
+      - ./local:/opt/splunk/etc/apps/TA-telegraf-amd64/local:rw
+      - ./local:/opt/splunk/etc/deployment-apps/TA-telegraf-amd64/local:rw
     environment:
-      SPLUNK_HEC_URL: https://splunk:8088
-      SPLUNK_HEC_TOKEN: 8715c2d1-94af-4927-908a-23408c374328
-      #SPLUNK_LICENSE_URI: Free
-      SPLUNK_START_ARGS: --accept-license
+      SPLUNK_ENABLE_LISTEN: 9997
+      #SPLUNK_HEC_URL: https://splunk:8088
+      #SPLUNK_HEC_TOKEN: 8715c2d1-94af-4927-908a-23408c374328
+      SPLUNK_USERNAME: ${USER:-admin}
       SPLUNK_PASSWORD: ${PASS:-password}
+      SPLUNK_START_ARGS: --accept-license --no-prompt --answer-yes
+      #SPLUNK_LICENSE_URI: Free
     labels: []
 
   extract:
@@ -163,16 +170,11 @@ services:
       - -xc
     command:
       - |
-
-        mkdir -p "/home/system/local"
-        cp -vf "/configs/indexes.conf"  "/home/system/local/indexes.conf"
-        cp -vf "/configs/serverclass.conf" "/home/system/local/serverclass.conf"
-
         until test -e /home/apps; do sleep 1; done
-        find /configs/plugins -iname "*.tgz" -exec tar -C /home/apps -xzf "{}" ";"
+        find /stuff -iname "*.tgz" -exec tar -C /home/apps -xzf "{}" ";"
 
         until test -e /home/deployment-apps; do sleep 1; done
-        find /configs/plugins -iname "*.tgz" -exec tar -C /home/deployment-apps -xzf "{}" ";"
+        find /stuff -iname "*.tgz" -exec tar -C /home/deployment-apps -xzf "{}" ";"
 
         mkdir -p "/home/apps/TA-kafka-streaming-platform/local"
         sed 's:^disabled = true$$:disabled = false:g' \
@@ -184,40 +186,14 @@ services:
           "/home/deployment-apps/TA-kafka-streaming-platform/default/inputs.conf.sample" \
           | tee "/home/deployment-apps/TA-kafka-streaming-platform/local/inputs.conf"
 
-        mkdir -p "/home/apps/TA-telegraf-amd64/local"
-        tee -a "/home/apps/TA-telegraf-amd64/local/inputs.conf" <<-EOF
-
-          [http]
-          disabled = 0
-
-          [http://Telegraf]
-          disabled = 0
-          index = telegraf
-          indexes = telegraf
-          token = 8715c2d1-94af-4927-908a-23408c374328
-        EOF
-
-        mkdir -p "/home/deployment-apps/TA-telegraf-amd64/local"
-        tee -a "/home/deployment-apps/TA-telegraf-amd64/local/inputs.conf" <<-EOF
-
-          [http]
-          disabled = 0
-
-          [http://Telegraf]
-          disabled = 0
-          index = telegraf
-          indexes = telegraf
-          token = 8715c2d1-94af-4927-908a-23408c374328
-        EOF
-
-        cp -vf "/configs/telegraf.conf" "/home/apps/TA-telegraf-amd64/local/telegraf.conf"
-        cp -vf "/configs/telegraf.conf" "/home/deployment-apps/TA-telegraf-amd64/local/telegraf.conf"
-
         chown --reference=/home -R /home
         chgrp --reference=/home -R /home
+
+        sleep 9999
         exit
     volumes:
-      - ./:/configs:ro
+      - ./local:/configs:ro
+      - ./plugins:/stuff:ro
       - splunk_etc:/home:rw
     depends_on:
       - splunk
