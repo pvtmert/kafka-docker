@@ -143,6 +143,10 @@ services:
     hostname: splunk
     networks:
       - default
+    build:
+      context: ./cmak
+      dockerfile: dockerfile
+      args: {}
     expose:
       - 9000
     ports:

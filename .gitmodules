@@ -1,0 +1,3 @@
+[submodule "cmak"]
+	path = cmak
+	url = https://github.com/pvtmert/cmak.git
