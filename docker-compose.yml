@@ -51,6 +51,9 @@ services:
     volumes:
       - kafka_logs:/home/confluent/logs:rw
     environment:
+      NODE_ENV: docker
+      NODE_LABEL: testing
+      PROJECT_NAME: ${COMPOSE_PROJECT_NAME}
       SPLUNK_HEC_URL: https://splunk:8088
       SPLUNK_HEC_TOKEN: 5040c76a-d21d-42dc-8971-89324dc7f58f
     depends_on:
@@ -181,6 +184,7 @@ services:
       - ./local:/opt/splunk/etc/apps/TA-telegraf-amd64/local:rw
       - ./local:/opt/splunk/etc/deployment-apps/TA-telegraf-amd64/local:rw
     environment:
+      PROJECT_NAME: ${COMPOSE_PROJECT_NAME}
       SPLUNK_ENABLE_LISTEN: 9997
       #SPLUNK_HEC_URL: https://splunk:8088
       #SPLUNK_HEC_TOKEN: 8715c2d1-94af-4927-908a-23408c374328
