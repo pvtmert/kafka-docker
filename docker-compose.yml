@@ -114,6 +114,29 @@ services:
     depends_on:
       - nodes
 
+  cmak-zk-fix:
+    image: pvtmert/confluent:latest
+    restart: "no"
+    hostname: cmak-zk-fix
+    entrypoint:
+      - /bin/bash
+      - -xc
+    command:
+      - |
+        sleep 30 # give some time to boot
+        zookeeper-shell kafkanet:2181 create /kafka-manager/mutex ""
+        zookeeper-shell kafkanet:2181 create /kafka-manager/mutex/locks ""
+        zookeeper-shell kafkanet:2181 create /kafka-manager/mutex/leases ""
+        exit
+    build:
+      context: ./
+      dockerfile: dockerfile
+      args: {}
+    networks:
+      - default
+    depends_on:
+      - nodes
+
   manager:
     image: pvtmert/cmak:latest
     restart: "on-failure"
@@ -132,6 +155,7 @@ services:
     labels: []
     depends_on:
       - nodes
+      - cmak-zk-fix
 
   splunk:
     image: splunk/splunk:7.2
@@ -189,7 +213,7 @@ services:
         chown --reference=/home -R /home
         chgrp --reference=/home -R /home
 
-        sleep 9999
+        sleep 99
         exit
     volumes:
       - ./local:/configs:ro
