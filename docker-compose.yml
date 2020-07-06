@@ -32,7 +32,7 @@ services:
     command: kafkanet
     build:
       context: ./
-      dockerfile: dockerfile
+      dockerfile: ./dockerfile
       args: {}
     networks:
       default:
@@ -85,7 +85,7 @@ services:
         wait
     build:
       context: ./
-      dockerfile: dockerfile
+      dockerfile: ./dockerfile
       args: {}
     networks:
       - default
@@ -107,7 +107,7 @@ services:
         wait
     build:
       context: ./
-      dockerfile: dockerfile
+      dockerfile: ./dockerfile
       args: {}
     networks:
       - default
@@ -130,7 +130,7 @@ services:
         exit
     build:
       context: ./
-      dockerfile: dockerfile
+      dockerfile: ./dockerfile
       args: {}
     networks:
       - default
@@ -145,7 +145,7 @@ services:
       - default
     build:
       context: ./cmak
-      dockerfile: dockerfile
+      dockerfile: ./cmak/dockerfile
       args: {}
     expose:
       - 9000
