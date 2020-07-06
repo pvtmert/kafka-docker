@@ -145,7 +145,7 @@ services:
       - default
     build:
       context: ./cmak
-      dockerfile: ./cmak/dockerfile
+      dockerfile: ./dockerfile
       args: {}
     expose:
       - 9000
